@@ -40,6 +40,16 @@ const App = (() => {
     }).format(num);
   }
 
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
   function formatDate(dateStr) {
     if (!dateStr) return '-';
     const d = new Date(dateStr);
@@ -489,14 +499,20 @@ const App = (() => {
         state.suppliers.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
     }
 
-    // Selectores en Movimientos de Stock
+    // Selectores en Movimientos de Stock & Gestión de Pedidos
+    const managerSelect = document.getElementById('manager-product-select');
     const entrySelect = document.getElementById('entry-product-select');
     const exitSelect = document.getElementById('exit-product-select');
 
     const activeProducts = state.products.filter(p => p.active);
-    const optionsHtml = '<option value="">-- Seleccionar producto --</option>' +
-      activeProducts.map(p => `<option value="${p.id}" data-stock="${p.stock}" data-name="${p.name}">${p.sku} - ${p.name} (Stock actual: ${p.stock})</option>`).join('');
+    const optionsHtml = '<option value="">-- Seleccionar producto del catálogo --</option>' +
+      activeProducts.map(p => `<option value="${p.id}" data-stock="${p.stock}" data-name="${p.name}" data-sku="${p.sku}">${p.sku} - ${p.name} (Stock actual: ${p.stock} un.)</option>`).join('');
 
+    if (managerSelect) {
+      const prevVal = managerSelect.value;
+      managerSelect.innerHTML = optionsHtml;
+      if (prevVal) managerSelect.value = prevVal;
+    }
     if (entrySelect) entrySelect.innerHTML = optionsHtml;
     if (exitSelect) exitSelect.innerHTML = optionsHtml;
   }
@@ -891,6 +907,33 @@ const App = (() => {
     document.getElementById('product-id').value = '';
     document.getElementById('modal-product-title').innerHTML = '<i class="fa-solid fa-box"></i> <span>Nuevo Producto</span>';
     document.getElementById('prod-active-container').style.display = 'none';
+
+    // Sección de pedido inicial
+    document.getElementById('prod-stock-section-title').textContent = 'Recepción de Pedido / Stock Inicial';
+    const badge = document.getElementById('prod-current-stock-badge');
+    if (badge) badge.style.display = 'none';
+    const newFields = document.getElementById('new-prod-order-fields');
+    if (newFields) newFields.style.display = 'block';
+    const editFields = document.getElementById('edit-prod-stock-fields');
+    if (editFields) editFields.style.display = 'none';
+
+    const chk = document.getElementById('chk-has-initial-order');
+    if (chk) chk.checked = true;
+    const calcCont = document.getElementById('initial-order-calc-container');
+    if (calcCont) calcCont.style.display = 'block';
+
+    const packs = document.getElementById('prod-init-packs');
+    const units = document.getElementById('prod-init-units-per-pack');
+    const disc = document.getElementById('prod-init-discount');
+    const total = document.getElementById('prod-init-total-stock');
+    const note = document.getElementById('prod-init-note');
+
+    if (packs) packs.value = '1';
+    if (units) units.value = '12';
+    if (disc) disc.value = '0';
+    if (total) total.value = '12';
+    if (note) note.value = '';
+
     openModal('modal-product');
   }
 
@@ -909,6 +952,29 @@ const App = (() => {
     document.getElementById('prod-min-stock').value = prod.min_stock;
     document.getElementById('prod-active').value = prod.active ? '1' : '0';
     document.getElementById('prod-active-container').style.display = 'block';
+
+    // Configurar sección de ajuste de stock
+    document.getElementById('prod-stock-section-title').textContent = 'Control & Ajuste de Stock';
+    const badge = document.getElementById('prod-current-stock-badge');
+    if (badge) {
+      badge.textContent = `Stock Actual: ${prod.stock} un.`;
+      badge.style.display = 'inline-block';
+    }
+    const newFields = document.getElementById('new-prod-order-fields');
+    if (newFields) newFields.style.display = 'none';
+    const editFields = document.getElementById('edit-prod-stock-fields');
+    if (editFields) editFields.style.display = 'block';
+
+    const actionSelect = document.getElementById('prod-edit-stock-action');
+    if (actionSelect) actionSelect.value = 'none';
+    const qtyGroup = document.getElementById('prod-edit-stock-qty-group');
+    if (qtyGroup) qtyGroup.style.display = 'none';
+    const noteGroup = document.getElementById('prod-edit-stock-note-group');
+    if (noteGroup) noteGroup.style.display = 'none';
+    const qtyInput = document.getElementById('prod-edit-stock-qty');
+    if (qtyInput) qtyInput.value = '';
+    const noteInput = document.getElementById('prod-edit-stock-note');
+    if (noteInput) noteInput.value = '';
 
     document.getElementById('modal-product-title').innerHTML = `<i class="fa-solid fa-pen"></i> <span>Editar: ${prod.name}</span>`;
     openModal('modal-product');
@@ -939,15 +1005,41 @@ const App = (() => {
 
     try {
       if (id) {
-        // Actualizar
+        // Actualizar datos del producto
         const activeVal = document.getElementById('prod-active').value === '1';
         payload.active = activeVal;
         await API.updateProduct(id, payload);
-        showToast('Producto Actualizado', `El producto "${name}" se actualizó correctamente en MySQL.`);
+
+        // Si el usuario seleccionó ajustar stock
+        const stockAction = document.getElementById('prod-edit-stock-action')?.value;
+        const stockQty = Number(document.getElementById('prod-edit-stock-qty')?.value) || 0;
+        const stockNote = document.getElementById('prod-edit-stock-note')?.value.trim();
+
+        if (stockAction === 'add' && stockQty > 0) {
+          await API.registerEntry(id, stockQty, stockNote || 'Ajuste / Entrada desde edición de producto');
+          showToast('Stock Actualizado', `Se sumaron +${stockQty} unidades al inventario de "${name}".`);
+        } else if (stockAction === 'sub' && stockQty > 0) {
+          await API.registerExit(id, stockQty, stockNote || 'Ajuste / Salida desde edición de producto');
+          showToast('Stock Actualizado', `Se descontaron -${stockQty} unidades del inventario de "${name}".`, 'warning');
+        } else {
+          showToast('Producto Actualizado', `El producto "${name}" se actualizó correctamente en MySQL.`);
+        }
       } else {
-        // Crear
+        // Crear producto nuevo con soporte de pedido inicial
+        const chk = document.getElementById('chk-has-initial-order');
+        const hasInitialOrder = chk ? chk.checked : false;
+        const initialUnits = hasInitialOrder ? Number(document.getElementById('prod-init-total-stock').value) || 0 : 0;
+        const initialNote = document.getElementById('prod-init-note')?.value.trim();
+
+        payload.initial_stock = initialUnits;
+        if (initialNote) payload.initial_stock_note = initialNote;
+
         await API.createProduct(payload);
-        showToast('Producto Creado', `El producto "${name}" se registró con éxito en MySQL.`);
+        if (initialUnits > 0) {
+          showToast('Producto y Pedido Creado', `"${name}" registrado con éxito y +${initialUnits} unidades en stock.`);
+        } else {
+          showToast('Producto Creado', `El producto "${name}" se registró con éxito en MySQL.`);
+        }
       }
 
       closeModals();
@@ -956,6 +1048,7 @@ const App = (() => {
       updateSelectOptions();
       renderProductsTable();
       renderPosCatalog();
+      loadDashboard();
     } catch (err) {
       showToast('Error al guardar producto', err.message, 'danger');
     }
@@ -989,14 +1082,275 @@ const App = (() => {
   }
 
   /* ================== MOVIMIENTOS DE STOCK ================== */
+  let currentStockOp = 'ENTRY'; // 'ENTRY' (sumar) o 'EXIT' (descontar)
+  let currentStockMode = 'PACKS'; // 'PACKS' (cajas) o 'UNITS' (sueltas)
+
+  function selectProductInManager(productId) {
+    const managerSelect = document.getElementById('manager-product-select');
+    const searchInput = document.getElementById('manager-product-search');
+    const clearBtn = document.getElementById('btn-clear-product-search');
+    const infoBadge = document.getElementById('selected-product-info');
+    const dropdown = document.getElementById('manager-product-dropdown');
+
+    const prod = state.products.find(p => p.id === Number(productId));
+    if (!prod) return;
+
+    if (managerSelect) {
+      managerSelect.value = prod.id;
+      managerSelect.dispatchEvent(new Event('change'));
+    }
+
+    if (searchInput) {
+      searchInput.value = `${prod.sku} - ${prod.name}`;
+    }
+
+    if (clearBtn) {
+      clearBtn.style.display = 'flex';
+    }
+
+    if (infoBadge) {
+      infoBadge.style.display = 'inline-flex';
+      const stockColor = prod.stock > 0 ? 'var(--success)' : 'var(--danger)';
+      infoBadge.innerHTML = `<i class="fa-solid fa-cube"></i> Stock actual: <strong style="color: ${stockColor}; margin-left: 4px;">${prod.stock} un.</strong>`;
+    }
+
+    if (dropdown) {
+      dropdown.style.display = 'none';
+    }
+
+    recalculateStockManager();
+  }
+
+  function clearProductInManager() {
+    const managerSelect = document.getElementById('manager-product-select');
+    const searchInput = document.getElementById('manager-product-search');
+    const clearBtn = document.getElementById('btn-clear-product-search');
+    const infoBadge = document.getElementById('selected-product-info');
+    const dropdown = document.getElementById('manager-product-dropdown');
+
+    if (managerSelect) {
+      managerSelect.value = '';
+      managerSelect.dispatchEvent(new Event('change'));
+    }
+    if (searchInput) {
+      searchInput.value = '';
+    }
+    if (clearBtn) {
+      clearBtn.style.display = 'none';
+    }
+    if (infoBadge) {
+      infoBadge.style.display = 'none';
+    }
+    if (dropdown) {
+      dropdown.style.display = 'none';
+    }
+    recalculateStockManager();
+  }
+
+  function renderProductPickerDropdown(query = '') {
+    const dropdown = document.getElementById('manager-product-dropdown');
+    const managerSelect = document.getElementById('manager-product-select');
+    if (!dropdown) return;
+
+    const term = (query || '').toLowerCase().trim();
+    const activeProducts = state.products.filter(p => p.active);
+    const matches = term
+      ? activeProducts.filter(p =>
+          (p.name && p.name.toLowerCase().includes(term)) ||
+          (p.sku && p.sku.toLowerCase().includes(term)) ||
+          (p.category && p.category.toLowerCase().includes(term))
+        )
+      : activeProducts;
+
+    if (matches.length === 0) {
+      dropdown.innerHTML = `<div class="picker-no-results"><i class="fa-solid fa-triangle-exclamation" style="color: var(--warning); margin-right: 6px;"></i> No se encontraron productos coincidentes con "<strong>${escapeHtml(query)}</strong>"</div>`;
+      dropdown.style.display = 'block';
+      return;
+    }
+
+    dropdown.innerHTML = matches.map(p => {
+      const isSelected = managerSelect && String(p.id) === managerSelect.value;
+      const stockClass = p.stock > 0 ? 'in-stock' : 'low-stock';
+      return `
+        <div class="picker-item ${isSelected ? 'selected' : ''}" data-id="${p.id}">
+          <div class="picker-item-info">
+            <div class="picker-item-title">
+              <span class="picker-sku-badge">${p.sku}</span>
+              <span>${p.name}</span>
+            </div>
+            <div class="picker-item-subtitle">${p.category || 'Catálogo general'} • P. Compra: ${formatMoney(p.purchase_price)}</div>
+          </div>
+          <div class="picker-item-stats">
+            <span class="picker-stock-tag ${stockClass}">Stock: ${p.stock} un.</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    dropdown.querySelectorAll('.picker-item').forEach(item => {
+      item.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        selectProductInManager(item.dataset.id);
+      });
+    });
+
+    dropdown.style.display = 'block';
+  }
+
+  function updateOpTabs() {
+    const tabOpEntry = document.getElementById('tab-op-entry');
+    const tabOpExit = document.getElementById('tab-op-exit');
+    const badgeOpMode = document.getElementById('badge-operation-mode');
+    const btnSubmitManager = document.getElementById('btn-submit-manager');
+    const labelManagerNote = document.getElementById('label-manager-note');
+    const managerNote = document.getElementById('manager-note');
+
+    if (!tabOpEntry || !tabOpExit) return;
+    if (currentStockOp === 'ENTRY') {
+      tabOpEntry.className = 'op-tab-btn active-entry';
+      tabOpExit.className = 'op-tab-btn';
+      if (badgeOpMode) {
+        badgeOpMode.className = 'badge badge-success';
+        badgeOpMode.textContent = 'Operación: Sumar al Stock';
+      }
+      if (btnSubmitManager) {
+        btnSubmitManager.className = 'btn btn-success';
+        btnSubmitManager.innerHTML = '<i class="fa-solid fa-circle-plus"></i> <span>Registrar Pedido y Sumar al Stock</span>';
+      }
+      if (labelManagerNote) labelManagerNote.textContent = 'Factura de Proveedor / Nota del Pedido';
+      if (managerNote) managerNote.placeholder = 'Ej: Factura Proveedor #4092 / Pedido semanal';
+    } else {
+      tabOpEntry.className = 'op-tab-btn';
+      tabOpExit.className = 'op-tab-btn active-exit';
+      if (badgeOpMode) {
+        badgeOpMode.className = 'badge badge-danger';
+        badgeOpMode.textContent = 'Operación: Descontar del Stock';
+      }
+      if (btnSubmitManager) {
+        btnSubmitManager.className = 'btn btn-danger';
+        btnSubmitManager.innerHTML = '<i class="fa-solid fa-circle-minus"></i> <span>Registrar Salida y Descontar del Stock</span>';
+      }
+      if (labelManagerNote) labelManagerNote.textContent = 'Motivo de la Salida / Devolución / Avería';
+      if (managerNote) managerNote.placeholder = 'Ej: Botella quebrada, producto vencido o devolución a proveedor';
+    }
+    recalculateStockManager();
+  }
+
+  function updateModeTabs() {
+    const btnModePacks = document.getElementById('btn-mode-packs');
+    const btnModeUnits = document.getElementById('btn-mode-units');
+    const containerPacksMode = document.getElementById('container-packs-mode');
+    const containerUnitsMode = document.getElementById('container-units-mode');
+    const labelModeIndicator = document.getElementById('label-mode-indicator');
+
+    if (!btnModePacks || !btnModeUnits) return;
+    if (currentStockMode === 'PACKS') {
+      btnModePacks.classList.add('active');
+      btnModeUnits.classList.remove('active');
+      if (containerPacksMode) containerPacksMode.style.display = 'flex';
+      if (containerUnitsMode) containerUnitsMode.style.display = 'none';
+      if (labelModeIndicator) labelModeIndicator.textContent = 'Por Cajas / Pacas / Paquetes';
+    } else {
+      btnModePacks.classList.remove('active');
+      btnModeUnits.classList.add('active');
+      if (containerPacksMode) containerPacksMode.style.display = 'none';
+      if (containerUnitsMode) containerUnitsMode.style.display = 'flex';
+      if (labelModeIndicator) labelModeIndicator.textContent = 'Por Unidades Sueltas';
+    }
+    recalculateStockManager();
+  }
+
+  function recalculateStockManager() {
+    const managerSelect = document.getElementById('manager-product-select');
+    const calcFormulaDisplay = document.getElementById('calc-formula-display');
+    const managerPackCount = document.getElementById('manager-pack-count');
+    const managerUnitsPerPack = document.getElementById('manager-units-per-pack');
+    const managerDiscountUnits = document.getElementById('manager-discount-units');
+    const managerDirectUnits = document.getElementById('manager-direct-units');
+    const managerDiscountDirect = document.getElementById('manager-discount-direct');
+    const calcCurrentStock = document.getElementById('calc-current-stock');
+    const calcActionLabel = document.getElementById('calc-action-label');
+    const calcNetChange = document.getElementById('calc-net-change');
+    const calcProjectedStock = document.getElementById('calc-projected-stock');
+    const calcStatusBadge = document.getElementById('calc-status-badge');
+    const btnSubmitManager = document.getElementById('btn-submit-manager');
+
+    if (!managerSelect || !calcFormulaDisplay) return { hasProduct: false, netChange: 0 };
+    const opt = managerSelect.selectedOptions[0];
+    const hasProduct = Boolean(opt && opt.value);
+    const stock = hasProduct ? Number(opt.dataset.stock || 0) : 0;
+
+    let grossUnits = 0;
+    let discountUnits = 0;
+    let formulaText = '';
+
+    if (currentStockMode === 'PACKS') {
+      const packs = Math.max(0, parseInt(managerPackCount?.value, 10) || 0);
+      const unitsPerPack = Math.max(1, parseInt(managerUnitsPerPack?.value, 10) || 1);
+      discountUnits = Math.max(0, parseInt(managerDiscountUnits?.value, 10) || 0);
+      grossUnits = packs * unitsPerPack;
+      const net = Math.max(0, grossUnits - discountUnits);
+      formulaText = `(${packs} cajas × ${unitsPerPack} un./caja = ${grossUnits} un.) - ${discountUnits} mermas = ${net} unidades netas`;
+    } else {
+      grossUnits = Math.max(0, parseInt(managerDirectUnits?.value, 10) || 0);
+      discountUnits = Math.max(0, parseInt(managerDiscountDirect?.value, 10) || 0);
+      const net = Math.max(0, grossUnits - discountUnits);
+      formulaText = `${grossUnits} unidades brutas - ${discountUnits} mermas = ${net} unidades netas`;
+    }
+
+    const netChange = Math.max(0, grossUnits - discountUnits);
+
+    if (calcCurrentStock) calcCurrentStock.textContent = hasProduct ? `${stock} un.` : '-';
+    if (calcFormulaDisplay) calcFormulaDisplay.textContent = formulaText;
+
+    if (currentStockOp === 'ENTRY') {
+      if (calcActionLabel) calcActionLabel.textContent = 'Unidades a Sumar';
+      if (calcNetChange) {
+        calcNetChange.textContent = `+${netChange} un.`;
+        calcNetChange.className = 'val sum';
+      }
+      const projected = stock + netChange;
+      if (calcProjectedStock) {
+        calcProjectedStock.textContent = hasProduct ? `${projected} un.` : '-';
+        calcProjectedStock.style.color = 'var(--success)';
+      }
+      if (calcStatusBadge) {
+        calcStatusBadge.className = 'badge badge-success';
+        calcStatusBadge.textContent = netChange > 0 ? 'Entrada Lista' : 'Ingresa cantidad';
+      }
+      if (btnSubmitManager) btnSubmitManager.disabled = !hasProduct || netChange <= 0;
+    } else {
+      if (calcActionLabel) calcActionLabel.textContent = 'Unidades a Descontar';
+      if (calcNetChange) {
+        calcNetChange.textContent = `-${netChange} un.`;
+        calcNetChange.className = 'val discount';
+      }
+      const projected = stock - netChange;
+      if (calcProjectedStock) calcProjectedStock.textContent = hasProduct ? `${projected} un.` : '-';
+      if (hasProduct && projected < 0) {
+        if (calcProjectedStock) calcProjectedStock.style.color = 'var(--danger)';
+        if (calcStatusBadge) {
+          calcStatusBadge.className = 'badge badge-danger';
+          calcStatusBadge.textContent = `Stock Insuficiente (Faltan ${Math.abs(projected)})`;
+        }
+        if (btnSubmitManager) btnSubmitManager.disabled = true;
+      } else {
+        if (calcProjectedStock) calcProjectedStock.style.color = 'var(--primary)';
+        if (calcStatusBadge) {
+          calcStatusBadge.className = 'badge badge-warning';
+          calcStatusBadge.textContent = 'Salida / Ajuste';
+        }
+        if (btnSubmitManager) btnSubmitManager.disabled = !hasProduct || netChange <= 0;
+      }
+    }
+    return { hasProduct, stock, netChange, grossUnits, discountUnits };
+  }
+
   function openStockEntryFor(productId) {
     navigateTo('inventory');
-    const select = document.getElementById('entry-product-select');
-    if (select) {
-      select.value = productId;
-      select.dispatchEvent(new Event('change'));
-      document.getElementById('entry-quantity').focus();
-    }
+    selectProductInManager(productId);
+    const packCount = document.getElementById('manager-pack-count');
+    if (packCount) packCount.focus();
   }
 
   async function loadInventoryView() {
@@ -1456,89 +1810,249 @@ const App = (() => {
     });
     document.getElementById('form-product').addEventListener('submit', saveProduct);
 
-    // Movimientos de Stock - Entradas
+    // ================== MODAL PRODUCTO: EVENTOS DE PEDIDO Y AJUSTES ==================
+    const chkHasInitialOrder = document.getElementById('chk-has-initial-order');
+    const initialOrderContainer = document.getElementById('initial-order-calc-container');
+    const prodInitPacks = document.getElementById('prod-init-packs');
+    const prodInitUnitsPerPack = document.getElementById('prod-init-units-per-pack');
+    const prodInitDiscount = document.getElementById('prod-init-discount');
+    const prodInitTotalStock = document.getElementById('prod-init-total-stock');
+
+    function updateInitialProductOrderCalc() {
+      if (!chkHasInitialOrder || !prodInitTotalStock) return;
+      if (!chkHasInitialOrder.checked) {
+        prodInitTotalStock.value = 0;
+        return;
+      }
+      const packs = Math.max(0, parseInt(prodInitPacks?.value, 10) || 0);
+      const units = Math.max(0, parseInt(prodInitUnitsPerPack?.value, 10) || 0);
+      const disc = Math.max(0, parseInt(prodInitDiscount?.value, 10) || 0);
+      const total = Math.max(0, (packs * units) - disc);
+      prodInitTotalStock.value = total;
+    }
+
+    if (chkHasInitialOrder) {
+      chkHasInitialOrder.addEventListener('change', () => {
+        if (initialOrderContainer) {
+          initialOrderContainer.style.display = chkHasInitialOrder.checked ? 'block' : 'none';
+        }
+        updateInitialProductOrderCalc();
+      });
+    }
+    if (prodInitPacks) prodInitPacks.addEventListener('input', updateInitialProductOrderCalc);
+    if (prodInitUnitsPerPack) prodInitUnitsPerPack.addEventListener('input', updateInitialProductOrderCalc);
+    if (prodInitDiscount) prodInitDiscount.addEventListener('input', updateInitialProductOrderCalc);
+
+    // Modal Producto: Edición de producto y ajuste de stock
+    const prodEditStockAction = document.getElementById('prod-edit-stock-action');
+    const prodEditStockQtyGroup = document.getElementById('prod-edit-stock-qty-group');
+    const prodEditStockQtyLabel = document.getElementById('prod-edit-stock-qty-label');
+    const prodEditStockNoteGroup = document.getElementById('prod-edit-stock-note-group');
+
+    if (prodEditStockAction) {
+      prodEditStockAction.addEventListener('change', () => {
+        const val = prodEditStockAction.value;
+        if (val === 'none') {
+          if (prodEditStockQtyGroup) prodEditStockQtyGroup.style.display = 'none';
+          if (prodEditStockNoteGroup) prodEditStockNoteGroup.style.display = 'none';
+        } else if (val === 'add') {
+          if (prodEditStockQtyGroup) prodEditStockQtyGroup.style.display = 'block';
+          if (prodEditStockNoteGroup) prodEditStockNoteGroup.style.display = 'block';
+          if (prodEditStockQtyLabel) prodEditStockQtyLabel.innerHTML = 'Unidades a Sumar (Llegaron en pedido) <span class="req">*</span>';
+        } else if (val === 'sub') {
+          if (prodEditStockQtyGroup) prodEditStockQtyGroup.style.display = 'block';
+          if (prodEditStockNoteGroup) prodEditStockNoteGroup.style.display = 'block';
+          if (prodEditStockQtyLabel) prodEditStockQtyLabel.innerHTML = 'Unidades a Descontar (Avería / Merma) <span class="req">*</span>';
+        }
+      });
+    }
+
+    // ================== PANEL AVANZADO: GESTIÓN DE PEDIDOS & STOCK ==================
+    const formStockManager = document.getElementById('form-stock-manager');
+    const tabOpEntry = document.getElementById('tab-op-entry');
+    const tabOpExit = document.getElementById('tab-op-exit');
+    const btnModePacks = document.getElementById('btn-mode-packs');
+    const btnModeUnits = document.getElementById('btn-mode-units');
+
+    // Eventos de Pestañas de Operación (Sumar / Descontar)
+    if (tabOpEntry && tabOpExit) {
+      tabOpEntry.addEventListener('click', () => {
+        currentStockOp = 'ENTRY';
+        updateOpTabs();
+      });
+      tabOpExit.addEventListener('click', () => {
+        currentStockOp = 'EXIT';
+        updateOpTabs();
+      });
+    }
+
+    // Eventos de Modalidad (Cajas / Unidades)
+    if (btnModePacks && btnModeUnits) {
+      btnModePacks.addEventListener('click', () => {
+        currentStockMode = 'PACKS';
+        updateModeTabs();
+      });
+      btnModeUnits.addEventListener('click', () => {
+        currentStockMode = 'UNITS';
+        updateModeTabs();
+      });
+    }
+
+    // Buscador Inteligente y Autocompletado de Producto a Gestionar
+    const managerSearchInput = document.getElementById('manager-product-search');
+    const managerDropdown = document.getElementById('manager-product-dropdown');
+    const btnClearSearch = document.getElementById('btn-clear-product-search');
+
+    if (managerSearchInput) {
+      managerSearchInput.addEventListener('focus', () => {
+        renderProductPickerDropdown(managerSearchInput.value);
+      });
+      managerSearchInput.addEventListener('input', (e) => {
+        renderProductPickerDropdown(e.target.value);
+      });
+      managerSearchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          if (managerDropdown) managerDropdown.style.display = 'none';
+        } else if (e.key === 'Enter') {
+          e.preventDefault();
+          const firstItem = managerDropdown?.querySelector('.picker-item');
+          if (firstItem) {
+            selectProductInManager(firstItem.dataset.id);
+          }
+        }
+      });
+    }
+
+    if (btnClearSearch) {
+      btnClearSearch.addEventListener('click', (e) => {
+        e.preventDefault();
+        clearProductInManager();
+        managerSearchInput?.focus();
+      });
+    }
+
+    // Cerrar lista flotante al hacer clic fuera del buscador
+    document.addEventListener('click', (e) => {
+      const pickerWrapper = document.querySelector('.searchable-picker-wrapper');
+      if (pickerWrapper && !pickerWrapper.contains(e.target) && managerDropdown) {
+        managerDropdown.style.display = 'none';
+      }
+    });
+
+    // Inputs que recalculan en tiempo real la proyección de existencias
+    [
+      document.getElementById('manager-product-select'),
+      document.getElementById('manager-pack-count'),
+      document.getElementById('manager-units-per-pack'),
+      document.getElementById('manager-discount-units'),
+      document.getElementById('manager-direct-units'),
+      document.getElementById('manager-discount-direct')
+    ].forEach(elem => {
+      if (elem) {
+        elem.addEventListener('input', recalculateStockManager);
+        elem.addEventListener('change', recalculateStockManager);
+      }
+    });
+
+    // Envío del Formulario de Gestión de Pedidos & Stock
+    if (formStockManager) {
+      formStockManager.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const managerSelect = document.getElementById('manager-product-select');
+        if (!managerSelect || !managerSelect.value) {
+          showToast('Selección Requerida', 'Por favor busca y selecciona un producto del catálogo.', 'warning');
+          document.getElementById('manager-product-search')?.focus();
+          return;
+        }
+
+        const calc = recalculateStockManager();
+        if (!calc || !calc.hasProduct || calc.netChange <= 0) {
+          showToast('Cantidad inválida', 'La cantidad neta debe ser mayor a 0 unidades.', 'warning');
+          return;
+        }
+
+        const prodId = managerSelect.value;
+        const opt = managerSelect.selectedOptions[0];
+        const prodName = opt ? (opt.dataset.name || 'Producto') : 'Producto';
+        const managerNote = document.getElementById('manager-note');
+        const customNote = managerNote ? managerNote.value.trim() : '';
+
+        let detailNote = '';
+        if (currentStockOp === 'ENTRY') {
+          detailNote = currentStockMode === 'PACKS'
+            ? `Pedido: ${document.getElementById('manager-pack-count')?.value} cajas × ${document.getElementById('manager-units-per-pack')?.value} un.` + (calc.discountUnits > 0 ? ` (-${calc.discountUnits} mermas)` : '')
+            : `Pedido: ${calc.grossUnits} unidades` + (calc.discountUnits > 0 ? ` (-${calc.discountUnits} mermas)` : '');
+        } else {
+          detailNote = `Salida / Ajuste: ${calc.netChange} unidades`;
+        }
+
+        const finalNote = customNote ? `${customNote} | ${detailNote}` : detailNote;
+
+        try {
+          if (currentStockOp === 'ENTRY') {
+            await API.registerEntry(prodId, calc.netChange, finalNote);
+            showToast('Entrada de Pedido Exitosa', `Se sumaron +${calc.netChange} unidades a "${prodName}".`);
+          } else {
+            await API.registerExit(prodId, calc.netChange, finalNote);
+            showToast('Salida Registrada', `Se descontaron -${calc.netChange} unidades de "${prodName}".`, 'warning');
+          }
+
+          if (managerNote) managerNote.value = '';
+          const prodRes = await API.getProducts(true);
+          state.products = prodRes.data || [];
+          updateSelectOptions();
+          selectProductInManager(prodId);
+          loadMovementsHistory();
+          loadDashboard();
+        } catch (err) {
+          showToast('Error en Operación', err.message, 'danger');
+        }
+      });
+    }
+
+    // Compatibilidad y fallback formulario básico (si existiera)
     const entrySelect = document.getElementById('entry-product-select');
     const entryQty = document.getElementById('entry-quantity');
     const entryProjected = document.getElementById('entry-projected-stock');
-
-    function updateEntryPreview() {
-      const opt = entrySelect.selectedOptions[0];
-      const stock = opt ? Number(opt.dataset.stock || 0) : 0;
-      const qty = Number(entryQty.value) || 0;
-      if (!entrySelect.value) {
-        entryProjected.value = '-';
-      } else {
-        entryProjected.value = `${stock} un. → ${stock + qty} un.`;
-      }
+    if (entrySelect && entryQty) {
+      entrySelect.addEventListener('change', () => {
+        const opt = entrySelect.selectedOptions[0];
+        const stock = opt ? Number(opt.dataset.stock || 0) : 0;
+        const qty = Number(entryQty.value) || 0;
+        if (entryProjected) entryProjected.value = `${stock} un. → ${stock + qty} un.`;
+      });
+      document.getElementById('form-stock-entry')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        try {
+          await API.registerEntry(entrySelect.value, entryQty.value, document.getElementById('entry-note')?.value);
+          showToast('Entrada Exitosa', `Se agregaron unidades al inventario.`);
+          const prodRes = await API.getProducts(true);
+          state.products = prodRes.data || [];
+          updateSelectOptions();
+          loadMovementsHistory();
+        } catch (err) {
+          showToast('Error', err.message, 'danger');
+        }
+      });
     }
-    entrySelect.addEventListener('change', updateEntryPreview);
-    entryQty.addEventListener('input', updateEntryPreview);
 
-    document.getElementById('form-stock-entry').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const prodId = entrySelect.value;
-      const qty = entryQty.value;
-      const note = document.getElementById('entry-note').value;
-
-      try {
-        await API.registerEntry(prodId, qty, note);
-        showToast('Entrada Exitosa', `Se agregaron ${qty} unidades al inventario.`);
-        document.getElementById('form-stock-entry').reset();
-        entryProjected.value = '-';
-
-        const prodRes = await API.getProducts(true);
-        state.products = prodRes.data || [];
-        updateSelectOptions();
-        loadMovementsHistory();
-      } catch (err) {
-        showToast('Error en Entrada', err.message, 'danger');
-      }
-    });
-
-    // Movimientos de Stock - Salidas
     const exitSelect = document.getElementById('exit-product-select');
     const exitQty = document.getElementById('exit-quantity');
-    const exitProjected = document.getElementById('exit-projected-stock');
-
-    function updateExitPreview() {
-      const opt = exitSelect.selectedOptions[0];
-      const stock = opt ? Number(opt.dataset.stock || 0) : 0;
-      const qty = Number(exitQty.value) || 0;
-      if (!exitSelect.value) {
-        exitProjected.value = '-';
-      } else {
-        const remaining = stock - qty;
-        exitProjected.value = `${stock} un. → ${remaining} un.`;
-        if (remaining < 0) {
-          exitProjected.style.color = 'var(--danger)';
-        } else {
-          exitProjected.style.color = 'var(--text-main)';
+    if (exitSelect && exitQty) {
+      document.getElementById('form-stock-exit')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        try {
+          await API.registerExit(exitSelect.value, exitQty.value, document.getElementById('exit-note')?.value);
+          showToast('Salida Registrada', `Se descontaron unidades del inventario.`);
+          const prodRes = await API.getProducts(true);
+          state.products = prodRes.data || [];
+          updateSelectOptions();
+          loadMovementsHistory();
+        } catch (err) {
+          showToast('Error', err.message, 'danger');
         }
-      }
+      });
     }
-    exitSelect.addEventListener('change', updateExitPreview);
-    exitQty.addEventListener('input', updateExitPreview);
-
-    document.getElementById('form-stock-exit').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const prodId = exitSelect.value;
-      const qty = exitQty.value;
-      const note = document.getElementById('exit-note').value;
-
-      try {
-        await API.registerExit(prodId, qty, note);
-        showToast('Salida Registrada', `Se descontaron ${qty} unidades del inventario.`);
-        document.getElementById('form-stock-exit').reset();
-        exitProjected.value = '-';
-
-        const prodRes = await API.getProducts(true);
-        state.products = prodRes.data || [];
-        updateSelectOptions();
-        loadMovementsHistory();
-      } catch (err) {
-        showToast('Error en Salida', err.message, 'danger');
-      }
-    });
 
     document.getElementById('btn-refresh-movements').addEventListener('click', loadMovementsHistory);
 

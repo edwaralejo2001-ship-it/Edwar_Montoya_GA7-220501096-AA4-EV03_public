@@ -4,11 +4,15 @@
  */
 
 const API = (() => {
-  // Determina la URL base automáticamente (soporta puerto local 3000, Live Server o archivo directo)
+  // Configuración de URL del Backend:
+  // En producción (Netlify, Vercel, GitHub Pages), puedes definir la URL aquí o mediante window.BACKEND_API_URL
+  const CLOUD_BACKEND_URL = window.BACKEND_API_URL || localStorage.getItem('ewuarsoft_backend_url') || '';
+
+  // Determina la URL base automáticamente (soporta puerto local 3000, Live Server, archivo directo o nube)
   const isDirectOrOtherPort = window.location.protocol === 'file:' || 
     (!window.location.origin.includes(':3000') && !window.location.host.includes(':3000'));
   
-  const BASE_URL = isDirectOrOtherPort ? 'http://localhost:3000' : '';
+  const BASE_URL = CLOUD_BACKEND_URL || (isDirectOrOtherPort ? 'http://localhost:3000' : '');
   const API_URL = `${BASE_URL}/api`;
 
   /**
@@ -101,7 +105,9 @@ const API = (() => {
       supplier_id: data.supplier_id ? Number(data.supplier_id) : null,
       purchase_price: Number(data.purchase_price),
       sale_price: Number(data.sale_price),
-      min_stock: Number(data.min_stock || 0)
+      min_stock: Number(data.min_stock || 0),
+      initial_stock: data.initial_stock !== undefined ? Number(data.initial_stock) : 0,
+      initial_stock_note: data.initial_stock_note || null
     }),
     updateProduct: (id, fields) => request('/products/update', 'POST', { id: Number(id), fields }),
     deactivateProduct: (id) => request('/products/deactivate', 'POST', { id: Number(id) }),

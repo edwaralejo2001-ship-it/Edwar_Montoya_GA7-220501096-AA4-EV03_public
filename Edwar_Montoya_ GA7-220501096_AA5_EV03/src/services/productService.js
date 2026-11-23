@@ -18,13 +18,39 @@ async function createProduct(input) {
   const salePrice = validateNonNegativeNumber(input.sale_price, 'El precio de venta');
   const minStock = input.min_stock === undefined ? 0 : validateNonNegativeInteger(input.min_stock, 'El stock mínimo');
   const description = input.description === undefined ? null : String(input.description).trim();
+  const initialStock = input.initial_stock === undefined || input.initial_stock === null || input.initial_stock === ''
+    ? 0
+    : validateNonNegativeInteger(input.initial_stock, 'El stock inicial');
+  const initialStockNote = input.initial_stock_note
+    ? String(input.initial_stock_note).trim()
+    : 'Recepción de pedido inicial / Apertura de producto';
 
-  const [result] = await pool.execute(
-    `INSERT INTO products (sku, name, description, category_id, supplier_id, purchase_price, sale_price, min_stock)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [sku, name, description, categoryId, supplierId, purchasePrice, salePrice, minStock]
-  );
-  return getProductById({ id: result.insertId });
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [result] = await connection.execute(
+      `INSERT INTO products (sku, name, description, category_id, supplier_id, purchase_price, sale_price, stock, min_stock)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [sku, name, description, categoryId, supplierId, purchasePrice, salePrice, initialStock, minStock]
+    );
+    const newProductId = result.insertId;
+
+    if (initialStock > 0) {
+      await connection.execute(
+        `INSERT INTO inventory_movements (product_id, movement_type, quantity, note)
+         VALUES (?, 'ENTRY', ?, ?)`,
+        [newProductId, initialStock, initialStockNote]
+      );
+    }
+
+    await connection.commit();
+    return getProductById({ id: newProductId });
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 }
 
 async function listProducts(input = {}) {

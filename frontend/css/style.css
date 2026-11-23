@@ -1438,3 +1438,325 @@ body {
 .btn-logout:hover {
   background-color: #fee2e2;
 }
+
+/* =================== GESTIÓN AVANZADA DE PEDIDOS & STOCK =================== */
+.operation-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.op-tab-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  border-radius: var(--radius-md);
+  border: 2px solid var(--border-color);
+  background-color: #f8fafc;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.op-tab-btn:hover {
+  background-color: #f1f5f9;
+}
+
+.op-tab-btn.active-entry {
+  border-color: var(--success);
+  background-color: #ecfdf5;
+  color: #065f46;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.2);
+}
+
+.op-tab-btn.active-exit {
+  border-color: var(--danger);
+  background-color: #fef2f2;
+  color: #991b1b;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.2);
+}
+
+.calc-mode-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background-color: #f1f5f9;
+  padding: 4px;
+  border-radius: var(--radius-md);
+  margin-bottom: 16px;
+}
+
+.calc-mode-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+
+.calc-mode-btn.active {
+  background: #ffffff;
+  color: var(--text-main);
+  box-shadow: var(--shadow-sm);
+  font-weight: 700;
+}
+
+.calc-summary-card {
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 1px solid #cbd5e1;
+  border-radius: var(--radius-md);
+  padding: 16px;
+  margin-top: 16px;
+  margin-bottom: 20px;
+}
+
+.calc-summary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+.calc-formula-text {
+  font-size: 13px;
+  color: var(--text-main);
+  font-family: monospace;
+  background-color: #ffffff;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  margin-bottom: 12px;
+}
+
+.calc-stock-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  text-align: center;
+}
+
+.calc-metric-item {
+  background: #ffffff;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+}
+
+.calc-metric-item .label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  display: block;
+}
+
+.calc-metric-item .val {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--text-main);
+  margin-top: 2px;
+  display: block;
+}
+
+.calc-metric-item .val.sum {
+  color: var(--success);
+}
+
+.calc-metric-item .val.discount {
+  color: var(--danger);
+}
+
+.calc-metric-item .val.projected {
+  color: var(--primary);
+}
+
+.order-box-highlight {
+  border: 1px solid #cbd5e1;
+  background-color: #f8fafc;
+  border-radius: var(--radius-md);
+  padding: 16px;
+  margin-top: 14px;
+  margin-bottom: 14px;
+}
+
+.order-box-highlight.active-entry {
+  border-color: #a7f3d0;
+  background-color: #f0fdf4;
+}
+
+.order-box-highlight.active-exit {
+  border-color: #fecaca;
+  background-color: #fff1f2;
+}
+
+/* =================== SEARCHABLE PRODUCT PICKER =================== */
+.searchable-picker-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.search-picker-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-light);
+  font-size: 14px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.picker-search-input {
+  padding-left: 36px !important;
+  padding-right: 36px !important;
+  font-weight: 500;
+  cursor: text;
+}
+
+.picker-search-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+}
+
+.btn-clear-search {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #e2e8f0;
+  border: none;
+  color: var(--text-muted);
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 11px;
+  transition: all 0.2s;
+  z-index: 2;
+}
+
+.btn-clear-search:hover {
+  background: #cbd5e1;
+  color: var(--text-main);
+}
+
+.picker-dropdown-results {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.12), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  max-height: 280px;
+  overflow-y: auto;
+  z-index: 1000;
+}
+
+.picker-item {
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  border-bottom: 1px solid #f1f5f9;
+  transition: background-color 0.15s ease;
+}
+
+.picker-item:last-child {
+  border-bottom: none;
+}
+
+.picker-item:hover, .picker-item.highlighted {
+  background-color: #f8fafc;
+}
+
+.picker-item.selected {
+  background-color: #eef2ff;
+}
+
+.picker-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.picker-item-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.picker-sku-badge {
+  font-size: 11px;
+  font-weight: 700;
+  background: #f1f5f9;
+  color: var(--text-muted);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-family: monospace;
+}
+
+.picker-item-subtitle {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.picker-item-stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.picker-stock-tag {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+}
+
+.picker-stock-tag.in-stock {
+  background-color: var(--success-light);
+  color: #065f46;
+}
+
+.picker-stock-tag.low-stock {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+.picker-no-results {
+  padding: 16px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}

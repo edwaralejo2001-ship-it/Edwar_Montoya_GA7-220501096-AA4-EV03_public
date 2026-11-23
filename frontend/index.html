@@ -534,79 +534,137 @@
 
         <!-- ================= VISTA: MOVIMIENTOS DE STOCK ================= -->
         <section id="view-inventory" class="view-section">
-          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 24px; margin-bottom: 24px;">
-            <!-- Formulario Entrada de Stock -->
-            <div class="card">
-              <div class="card-header">
-                <div class="card-title">
-                  <i class="fa-solid fa-circle-arrow-down" style="color: var(--success);"></i>
-                  <span>Entrada de Mercancía (Compra)</span>
-                </div>
+          <!-- Panel de Gestión y Recepción de Pedidos / Control de Stock -->
+          <div class="card" style="max-width: 860px; margin: 0 auto 24px auto;">
+            <div class="card-header">
+              <div class="card-title">
+                <i class="fa-solid fa-boxes-packing" style="color: var(--primary);"></i>
+                <span>Gestión de Pedidos & Control de Existencias</span>
               </div>
-              <div class="card-body">
-                <form id="form-stock-entry">
-                  <div class="form-group">
-                    <label class="form-label">Producto <span class="req">*</span></label>
-                    <select id="entry-product-select" class="form-control" required>
-                      <option value="">-- Seleccionar producto --</option>
-                    </select>
-                  </div>
-                  <div class="form-row">
-                    <div class="form-group">
-                      <label class="form-label">Cantidad a Ingresar <span class="req">*</span></label>
-                      <input type="number" id="entry-quantity" class="form-control" min="1" step="1" required placeholder="Ej: 10">
-                    </div>
-                    <div class="form-group">
-                      <label class="form-label">Stock Proyectado</label>
-                      <input type="text" id="entry-projected-stock" class="form-control" readonly placeholder="-" style="background-color: #f1f5f9; font-weight: 600;">
-                    </div>
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label">Nota / Factura de Proveedor</label>
-                    <input type="text" id="entry-note" class="form-control" placeholder="Ej: Factura Proveedor #1052" maxlength="255">
-                  </div>
-                  <button type="submit" class="btn btn-success" style="width: 100%;">
-                    <i class="fa-solid fa-plus-circle"></i> Registrar Entrada de Stock
-                  </button>
-                </form>
-              </div>
+              <span class="badge badge-info" id="badge-operation-mode">Operación: Sumar al Stock</span>
             </div>
-
-            <!-- Formulario Salida Manual de Stock -->
-            <div class="card">
-              <div class="card-header">
-                <div class="card-title">
-                  <i class="fa-solid fa-circle-arrow-up" style="color: var(--danger);"></i>
-                  <span>Salida Manual (Avería / Ajuste)</span>
-                </div>
-              </div>
-              <div class="card-body">
-                <form id="form-stock-exit">
-                  <div class="form-group">
-                    <label class="form-label">Producto <span class="req">*</span></label>
-                    <select id="exit-product-select" class="form-control" required>
-                      <option value="">-- Seleccionar producto --</option>
-                    </select>
-                  </div>
-                  <div class="form-row">
-                    <div class="form-group">
-                      <label class="form-label">Cantidad a Retirar <span class="req">*</span></label>
-                      <input type="number" id="exit-quantity" class="form-control" min="1" step="1" required placeholder="Ej: 1">
-                    </div>
-                    <div class="form-group">
-                      <label class="form-label">Stock Proyectado</label>
-                      <input type="text" id="exit-projected-stock" class="form-control" readonly placeholder="-" style="background-color: #f1f5f9; font-weight: 600;">
-                    </div>
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label">Motivo de Salida <span class="req">*</span></label>
-                    <input type="text" id="exit-note" class="form-control" placeholder="Ej: Botella quebrada o merma" required maxlength="255">
-                  </div>
-                  <button type="submit" class="btn btn-danger" style="width: 100%;">
-                    <i class="fa-solid fa-minus-circle"></i> Registrar Salida de Stock
+            <div class="card-body">
+              <form id="form-stock-manager">
+                <!-- Selector de Operación: Sumar o Descontar -->
+                <div class="operation-tabs">
+                  <button type="button" class="op-tab-btn active-entry" id="tab-op-entry">
+                    <i class="fa-solid fa-circle-plus" style="color: var(--success); font-size: 16px;"></i>
+                    <span>Sumar al Stock (Entrada / Pedido)</span>
                   </button>
-                </form>
-              </div>
+                  <button type="button" class="op-tab-btn" id="tab-op-exit">
+                    <i class="fa-solid fa-circle-minus" style="color: var(--danger); font-size: 16px;"></i>
+                    <span>Descontar Stock (Salida / Avería / Devolución)</span>
+                  </button>
+                </div>
+
+                <!-- Selección de Producto con Buscador Inteligente -->
+                <div class="form-group" style="position: relative;">
+                  <label class="form-label" style="display: flex; justify-content: space-between; align-items: center;">
+                    <span>Producto a Gestionar <span class="req">*</span></span>
+                    <span id="selected-product-info" class="badge badge-info" style="display: none;"></span>
+                  </label>
+
+                  <div class="searchable-picker-wrapper">
+                    <div class="search-input-box" style="position: relative;">
+                      <i class="fa-solid fa-magnifying-glass search-picker-icon"></i>
+                      <input type="text" id="manager-product-search" class="form-control picker-search-input" 
+                             placeholder="Escribe para buscar por nombre o SKU (ej: Aguardiente, Ron, AGU-001)..." 
+                             autocomplete="off">
+                      <button type="button" id="btn-clear-product-search" class="btn-clear-search" style="display: none;" title="Limpiar selección">
+                        <i class="fa-solid fa-xmark"></i>
+                      </button>
+                    </div>
+
+                    <!-- Lista flotante de resultados en tiempo real -->
+                    <div id="manager-product-dropdown" class="picker-dropdown-results" style="display: none;"></div>
+                  </div>
+
+                  <!-- Select mantenido para integridad del formulario -->
+                  <select id="manager-product-select" style="display: none;" required>
+                    <option value="">-- Seleccionar producto del catálogo --</option>
+                  </select>
+                </div>
+
+                <!-- Modo de Ingreso / Conteo de Unidades -->
+                <div style="margin-top: 18px;">
+                  <label class="form-label" style="display: flex; justify-content: space-between; align-items: center;">
+                    <span>¿Cómo se cuenta el pedido / producto?</span>
+                    <span id="label-mode-indicator" style="font-weight: 700; color: var(--primary);">Por Cajas / Pacas / Paquetes</span>
+                  </label>
+                  <div class="calc-mode-group">
+                    <button type="button" class="calc-mode-btn active" id="btn-mode-packs">
+                      <i class="fa-solid fa-boxes-stacked"></i> Por Cajas / Pacas / Paquetes
+                    </button>
+                    <button type="button" class="calc-mode-btn" id="btn-mode-units">
+                      <i class="fa-solid fa-tag"></i> Por Unidades Sueltas
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Campos de Conteo - Modo Cajas/Pacas -->
+                <div id="container-packs-mode" class="form-row">
+                  <div class="form-group">
+                    <label class="form-label" id="label-pack-count">Cajas / Bultos Recibidos <span class="req">*</span></label>
+                    <input type="number" id="manager-pack-count" class="form-control" min="1" step="1" value="2" placeholder="Ej: 5">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Unidades por Caja / Pedido <span class="req">*</span></label>
+                    <input type="number" id="manager-units-per-pack" class="form-control" min="1" step="1" value="12" placeholder="Ej: 12">
+                  </div>
+                  <div class="form-group" id="group-discount-units">
+                    <label class="form-label">Descontar Averías / Mermas</label>
+                    <input type="number" id="manager-discount-units" class="form-control" min="0" step="1" value="0" placeholder="0">
+                  </div>
+                </div>
+
+                <!-- Campos de Conteo - Modo Unidades Sueltas -->
+                <div id="container-units-mode" class="form-row" style="display: none;">
+                  <div class="form-group" style="flex: 2;">
+                    <label class="form-label" id="label-unit-count">Cantidad Total de Unidades <span class="req">*</span></label>
+                    <input type="number" id="manager-direct-units" class="form-control" min="1" step="1" value="24" placeholder="Ej: 24">
+                  </div>
+                  <div class="form-group" id="group-discount-direct" style="flex: 1;">
+                    <label class="form-label">Descontar Mermas</label>
+                    <input type="number" id="manager-discount-direct" class="form-control" min="0" step="1" value="0" placeholder="0">
+                  </div>
+                </div>
+
+                <!-- Resumen Matemático y Proyección en Tiempo Real -->
+                <div class="calc-summary-card">
+                  <div class="calc-summary-header">
+                    <span><i class="fa-solid fa-calculator"></i> Cálculo Dinámico de Existencias</span>
+                    <span id="calc-status-badge" class="badge badge-success">Operación Válida</span>
+                  </div>
+                  <div class="calc-formula-text" id="calc-formula-display">
+                    (2 cajas × 12 un.) - 0 averías = +24 unidades netas
+                  </div>
+                  <div class="calc-stock-metrics">
+                    <div class="calc-metric-item">
+                      <span class="label">Stock Actual</span>
+                      <span class="val" id="calc-current-stock">-</span>
+                    </div>
+                    <div class="calc-metric-item">
+                      <span class="label" id="calc-action-label">Unidades a Sumar</span>
+                      <span class="val sum" id="calc-net-change">+24 un.</span>
+                    </div>
+                    <div class="calc-metric-item">
+                      <span class="label">Stock Resultante</span>
+                      <span class="val projected" id="calc-projected-stock">-</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Referencia / Factura / Motivo -->
+                <div class="form-group">
+                  <label class="form-label" id="label-manager-note">Factura de Proveedor / Nota del Pedido</label>
+                  <input type="text" id="manager-note" class="form-control" placeholder="Ej: Factura Proveedor #4092 / Pedido semanal" maxlength="255">
+                </div>
+
+                <!-- Botón de Envío -->
+                <button type="submit" class="btn btn-success" id="btn-submit-manager" style="width: 100%; padding: 13px; font-size: 15px; font-weight: 700;">
+                  <i class="fa-solid fa-circle-plus"></i> <span>Registrar Pedido y Sumar al Stock</span>
+                </button>
+              </form>
             </div>
           </div>
 
@@ -978,6 +1036,80 @@
                 <option value="1">Activo</option>
                 <option value="0">Inactivo</option>
               </select>
+            </div>
+          </div>
+
+          <!-- Sección: Unidades que llegan por pedido / Stock Inicial o Ajuste -->
+          <div id="prod-stock-section" class="order-box-highlight active-entry">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+              <span style="font-weight: 700; font-size: 13px; color: var(--text-main);">
+                <i class="fa-solid fa-boxes-stacked" style="color: var(--primary);"></i>
+                <span id="prod-stock-section-title">Recepción de Pedido / Stock Inicial</span>
+              </span>
+              <span id="prod-current-stock-badge" class="badge badge-info" style="display: none;">Stock Actual: 0 un.</span>
+            </div>
+
+            <!-- Si es nuevo producto -->
+            <div id="new-prod-order-fields">
+              <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+                <label style="font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                  <input type="checkbox" id="chk-has-initial-order" checked>
+                  <span>Llegó mercancía con este producto (pedido de apertura)</span>
+                </label>
+              </div>
+
+              <div id="initial-order-calc-container">
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="form-label">Cajas / Bultos</label>
+                    <input type="number" id="prod-init-packs" class="form-control" min="0" step="1" value="1" placeholder="Ej: 2">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Unidades por Caja/Pedido</label>
+                    <input type="number" id="prod-init-units-per-pack" class="form-control" min="1" step="1" value="12" placeholder="Ej: 12">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Descontar Mermas (rotas)</label>
+                    <input type="number" id="prod-init-discount" class="form-control" min="0" step="1" value="0" placeholder="0">
+                  </div>
+                </div>
+
+                <div class="form-row" style="align-items: center; margin-top: 8px;">
+                  <div class="form-group">
+                    <label class="form-label">Total unidades que ingresarán a Stock</label>
+                    <input type="number" id="prod-init-total-stock" class="form-control" min="0" step="1" value="12" style="background-color: #f0fdf4; font-weight: 800; color: #065f46; font-size: 15px;">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Factura / Nota de Pedido</label>
+                    <input type="text" id="prod-init-note" class="form-control" placeholder="Ej: Pedido inicial Factura #102">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Si es edición de producto: Ajustar Stock -->
+            <div id="edit-prod-stock-fields" style="display: none;">
+              <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">
+                ¿Deseas sumar unidades que llegaron en un nuevo pedido o descontar averías / mermas?
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Acción de Stock</label>
+                  <select id="prod-edit-stock-action" class="form-control">
+                    <option value="none">-- Mantener stock sin cambios --</option>
+                    <option value="add">➕ Sumar unidades de pedido (Entrada)</option>
+                    <option value="sub">➖ Descontar unidades (Avería / Merma / Salida)</option>
+                  </select>
+                </div>
+                <div class="form-group" id="prod-edit-stock-qty-group" style="display: none;">
+                  <label class="form-label" id="prod-edit-stock-qty-label">Cantidad de Unidades</label>
+                  <input type="number" id="prod-edit-stock-qty" class="form-control" min="1" step="1" placeholder="Ej: 10">
+                </div>
+              </div>
+              <div class="form-group" id="prod-edit-stock-note-group" style="display: none;">
+                <label class="form-label">Motivo / Factura de Pedido</label>
+                <input type="text" id="prod-edit-stock-note" class="form-control" placeholder="Ej: Pedido de reposición Factura #304">
+              </div>
             </div>
           </div>
         </div>
